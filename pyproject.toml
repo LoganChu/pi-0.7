@@ -1,0 +1,40 @@
+[project]
+name = "fastlab"
+version = "0.1.0"
+description = "A transparent reimplementation of FAST (Frequency-space Action Sequence Tokenization) for studying pi-0.x action tokenization"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "tokenizers>=0.20",
+]
+
+[project.optional-dependencies]
+# Only needed for experiments/05_official_parity.py, which compares this
+# reimplementation against the real physical-intelligence/fast tokenizer.
+official = [
+    "transformers>=4.44",
+    "torch>=2.4",
+    "huggingface-hub>=0.24",
+]
+# Only needed for experiments that pull real robot action chunks.
+data = [
+    "huggingface-hub>=0.24",
+    "pandas>=2.0",
+    "pyarrow>=15.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastlab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
