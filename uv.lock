@@ -253,6 +253,9 @@ data = [
     { name = "pandas" },
     { name = "pyarrow" },
 ]
+mem = [
+    { name = "torch" },
+]
 official = [
     { name = "huggingface-hub" },
     { name = "torch" },
@@ -274,10 +277,11 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'data'", specifier = ">=15.0" },
     { name = "scipy", specifier = ">=1.11" },
     { name = "tokenizers", specifier = ">=0.20" },
+    { name = "torch", marker = "extra == 'mem'", specifier = ">=2.4" },
     { name = "torch", marker = "extra == 'official'", specifier = ">=2.4" },
     { name = "transformers", marker = "extra == 'official'", specifier = ">=4.44" },
 ]
-provides-extras = ["official", "data"]
+provides-extras = ["official", "data", "mem"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
