@@ -14,13 +14,16 @@ raw actions → quantile normalize → DCT-II over time → quantize
             → flatten → drop trailing zeros → BPE → tokens
 ```
 
-**`memlab`** — the short-horizon video encoder from **MEM** (Multi-Scale
-Embodied Memory), the memory architecture built on π₀.6, together with a 2-D
-partially observable kitchen where memory is load-bearing.
+**`memlab`** — both halves of **MEM** (Multi-Scale Embodied Memory), the memory
+architecture built on π₀.6, in a 2-D partially observable kitchen where memory
+is load-bearing. Short horizon as video, long horizon as compressed text.
 
 ```
 frame history → patch embed → [spatial attn every layer, temporal every 4th]
               → drop history above layer 6 → current-frame tokens
+
+event stream  → belief → merge duplicates, drop stale, enforce budget
+              → "searched cabinets 1, 3 and 4. three mugs in cabinet 1."
 ```
 
 ## Why this repo exists
@@ -35,7 +38,7 @@ runs on CPU in seconds per experiment.
 |---|---|
 | FAST action tokenization | ✅ reimplemented + validated against the official tokenizer |
 | MEM short-horizon video memory | ✅ architecture reimplemented; measured, not trained |
-| MEM long-horizon text memory | ⬜ next — see "Where this goes" below |
+| MEM long-horizon text memory | ✅ compressed text memory + the LLM labelling path |
 | Flow-matching action expert | ➡️ use [`openpi`](https://github.com/Physical-Intelligence/openpi) (π₀ / π₀.5), needs a real GPU |
 | Knowledge insulation | ➡️ π₀.5 in `openpi` |
 | Multimodal prompting, world-model subgoals | ❌ not released |
@@ -51,7 +54,8 @@ a reproduction of its results.
 uv sync                    # core lab: numpy, scipy, matplotlib, tokenizers
 uv sync --extra data       # + real robot action chunks from LeRobot datasets
 uv sync --extra official   # + transformers/torch, for the parity check
-uv sync --extra mem        # + torch, for the memlab experiments (07-09)
+uv sync --extra mem        # + torch, for the memlab experiments (07-10)
+uv sync --extra llm        # + transformers, to let a real LM write the memory
 ```
 
 No CUDA, no WSL, no cluster. Runs natively on Windows.
@@ -68,10 +72,14 @@ uv run python experiments/06_official_parity.py   # needs --extra official
 uv run python experiments/07_token_dropping_cost.py   # needs --extra mem
 uv run python experiments/08_temporal_stride.py       # needs --extra mem
 uv run python experiments/09_oracle_rollout.py        # needs --extra mem
+uv run python experiments/10_text_memory.py           # needs --extra mem
 
 # watch an episode play out, as an animated GIF
 uv run python -m memlab.render --task find_object --seed 0
 uv run python -m memlab.render --task tidy_up --seed 3 --stride 3
+
+# see the prompts the LLM memory writer would receive, without a model
+uv run python -m memlab.llm_memory --task find_object --seed 0 --dry-run
 ```
 
 Figures land in `figures/`.
@@ -87,6 +95,7 @@ Figures land in `figures/`.
 | `07_token_dropping_cost` | What does dropping history in the upper layers actually buy? |
 | `08_temporal_stride` | How often does temporal attention need to run, and how far back can it reach? |
 | `09_oracle_rollout` | What does one episode look like, and which facts are only in memory? |
+| `10_text_memory` | Does compressed text memory stay small, and hold the right things? |
 
 ## What the experiments found
 
@@ -189,6 +198,47 @@ in the agent's own view. It turned up something uncomfortable about
 Worth knowing before building the ablation ladder: a memory ablation run on
 `find_object` alone would understate how much memory matters.
 
+### The long-horizon half: text memory
+
+MEM stores minutes of history as language rather than frames, on the argument
+that language is what stays small when you summarize it. Implemented here as the
+paper describes it (sec. III-B): a memory update accompanies each subtask, and
+the write rule is "remove or compress information whenever appropriate". Two
+writers, interchangeable — a deterministic template writer used by the
+experiments, and `llm_memory.py`, which hands a small pretrained model the
+subtask annotations plus a per-subtask success flag, exactly the paper's setup.
+
+**Compaction is a merge, so what it saves depends entirely on what repeats.**
+This is the finding that reframes the mechanism:
+
+| | verbatim transcript | compacted memory |
+|---|---|---|
+| one more *identical* item in a cabinet | +4.0 tokens | **+0.3 tokens** |
+| one more *distinct* event | +4.6 tokens | +2.7 tokens |
+
+The paper's own example — three separately-observed bowls remembered as "three
+bowls in the top right cabinet" — is the first row, and it works: `saw mug. saw
+mug. saw mug.` collapses to `three mugs in cabinet 1`. But the second row is the
+honest caveat. When every event is a genuinely new fact, merging has nothing to
+merge, and the memory keeps growing at roughly half the transcript's rate.
+**Compaction bends the curve; only the token budget bounds it.**
+
+**What it gives up under pressure is a design decision, not an accident.**
+Sweeping the budget down, object locations are dropped before the searched-cabinet
+set — re-searching a cabinet wastes more time than re-finding one object — and
+objects named in the instruction are exempt entirely.
+
+**It catches what the observation drops.** Experiment 09 found that in `tidy_up`
+a searched cabinet leaves the view and never returns. At the default 48-token
+budget the text memory retains 100% of those facts, which is the whole point of
+having a long-horizon store at all.
+
+Two implementation notes worth keeping in mind if you extend it. The belief
+state is a *label generator* with access to ground truth, which is the position
+the paper's LLM is in; the policy's memory is the rendered text and nothing
+else. And the LLM writer's prompt construction and response parsing are tested,
+but the generation call has never been run here — it needs a downloaded model.
+
 Regenerate everything with the commands above; figures land in `figures/`.
 
 ## Library
@@ -230,6 +280,9 @@ many robot embodiments.
 | `memlab/encoder.py` | the token-dropping space-time ViT |
 | `memlab/cost.py` | analytic FLOP model for the three cost regimes |
 | `memlab/render.py` | GIF playback of an episode + figure helpers |
+| `memlab/text_memory.py` | the long-horizon half: belief → compressed text, with a budget |
+| `memlab/memory_tokenizer.py` | word-level vocabulary over the memory language |
+| `memlab/llm_memory.py` | the same writer, but a pretrained LM does the writing |
 
 `memlab` actions are continuous `(dx, dy, grip)`, which is what lets `fastlab`
 consume them: the same chunk → DCT → BPE path, on 3 dimensions instead of 14.
@@ -258,10 +311,9 @@ above required a single gradient step, and every claim it makes is about the
 architecture rather than about a model's competence. The next pieces, roughly in
 order of how much they need:
 
-1. **Text memory** — MEM's long-horizon half. The kitchen already emits an event
-   log (`opened cabinet 3`, `saw bread in cabinet 3`) in exactly the form the
-   summarization stage consumes. Templates first, then a small pretrained LM in
-   the role the paper gives an "off-the-shelf LLM".
+1. **Run the LLM writer for real** — the plumbing is there and the prompts are
+   testable, but no model has been loaded. Worth comparing its output against
+   the template writer on the same episodes before trusting either.
 2. **The hierarchical policy and a training loop** — high-level subtask labels
    are already recorded per step; the low-level half consumes FAST tokens.
    Wants a CUDA build of torch, not the CPU one these experiments run on.

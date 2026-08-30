@@ -64,8 +64,17 @@ class TaskSpec:
     horizon: int
 
 
-def find_object(rng: np.random.Generator, n_cabinets: int = 5) -> TaskSpec:
-    """Search cabinets for one target, then put it on the table."""
+def find_object(
+    rng: np.random.Generator, n_cabinets: int = 5, clutter: int = 0
+) -> TaskSpec:
+    """Search cabinets for one target, then put it on the table.
+
+    `clutter` puts that many identical items in the first cabinet searched.
+    That is the paper's own compression example -- several separately-observed
+    bowls that should be remembered as "three bowls in the top right cabinet" --
+    and it is the only source of redundancy in these tasks, so it is what
+    experiment 10 varies to show when compaction can and cannot help.
+    """
     target = "bread"
     home = int(rng.integers(0, n_cabinets))
 
@@ -78,6 +87,10 @@ def find_object(rng: np.random.Generator, n_cabinets: int = 5) -> TaskSpec:
     # so the number of cabinets opened before the pick varies across episodes.
     order = [int(c) for c in rng.permutation(n_cabinets)]
     order = order[: order.index(home) + 1]
+
+    if clutter and len(order) > 1:
+        for j in range(clutter):
+            objects[100 + j] = Obj("mug", container=order[0])
 
     cabinet_cell = _cabinet_cells(n_cabinets)
     steps: list[Primitive] = []

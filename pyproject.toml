@@ -30,6 +30,12 @@ data = [
 mem = [
     "torch>=2.4",
 ]
+# Only needed for llm_memory.py, which swaps the template memory writer for a
+# real pretrained LM -- the paper's own "off-the-shelf LLM" labelling step.
+llm = [
+    "torch>=2.4",
+    "transformers>=4.44",
+]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

@@ -17,6 +17,9 @@ so its claims can be measured rather than taken on faith.
     encoder.py  the token-dropping space-time ViT
     cost.py     analytic FLOP model for the three cost regimes
     render.py   watch an episode: GIF playback and the figure helpers
+    text_memory.py      the long-horizon half: compressed text memory
+    memory_tokenizer.py word-level vocabulary over that memory
+    llm_memory.py       the same writer, but a real LM does the writing
 
 To watch the oracle run:
 
@@ -34,7 +37,18 @@ from .cost import Cost, flops, joint_flops, tokens_per_layer
 from .encoder import EncoderConfig, MemEncoder
 from .oracle import Episode, collect, run_episode
 from .render import rollout, save_gif, visibility
+from .memory_tokenizer import MemoryTokenizer
 from .tasks import TaskSpec, make_task
+from .text_memory import (
+    Belief,
+    MemoryConfig,
+    MemoryTrace,
+    MemoryUpdate,
+    Subtask,
+    TextMemory,
+    episode_subtasks,
+    memory_trace,
+)
 from .world import Kitchen, Layout, Obj, default_layout
 
 __all__ = [
@@ -50,6 +64,15 @@ __all__ = [
     "rollout",
     "save_gif",
     "visibility",
+    "TextMemory",
+    "MemoryConfig",
+    "MemoryTrace",
+    "MemoryUpdate",
+    "Belief",
+    "Subtask",
+    "memory_trace",
+    "episode_subtasks",
+    "MemoryTokenizer",
     "MemEncoder",
     "EncoderConfig",
     "Cost",

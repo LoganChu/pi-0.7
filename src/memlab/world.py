@@ -77,11 +77,18 @@ OBJECT_COLORS: dict[str, tuple[int, int, int]] = {
 
 @dataclass(frozen=True)
 class Event:
-    """One thing that happened, in a form the text-memory stage can consume."""
+    """One thing that happened, in a form the text-memory stage can consume.
+
+    Carries the structured fields as well as the sentence, so the memory writer
+    reads `event.cabinet` rather than parsing `"opened cabinet 3"` back apart.
+    """
 
     step: int
     kind: str
     text: str
+    obj: str | None = None
+    cabinet: int | None = None
+    surface: str | None = None
 
 
 @dataclass
@@ -229,12 +236,12 @@ class Kitchen:
 
         if cab is not None and not cab.is_open:
             cab.is_open = True
-            self._log("open", f"opened cabinet {cab.cid}")
+            self._log("open", f"opened cabinet {cab.cid}", cabinet=cab.cid)
             seen = [o.kind for o in self.objects.values() if o.container == cab.cid]
             for kind in seen:
-                self._log("see", f"saw {kind} in cabinet {cab.cid}")
+                self._log("see", f"saw {kind} in cabinet {cab.cid}", obj=kind, cabinet=cab.cid)
             if not seen:
-                self._log("see", f"cabinet {cab.cid} was empty")
+                self._log("see", f"cabinet {cab.cid} was empty", cabinet=cab.cid)
             return
 
         if self.holding is not None:
@@ -245,7 +252,7 @@ class Kitchen:
         obj = self.objects[oid]
         obj.held, obj.container, obj.cell = True, None, None
         self.holding = oid
-        self._log("pick", f"picked up {obj.kind}")
+        self._log("pick", f"picked up {obj.kind}", obj=obj.kind)
 
     def _pick_target(self, cell: tuple[int, int], cab: Cabinet | None) -> int | None:
         if cab is not None:
@@ -269,7 +276,7 @@ class Kitchen:
         if self.holding is None:
             if cab is not None and cab.is_open:
                 cab.is_open = False
-                self._log("close", f"closed cabinet {cab.cid}")
+                self._log("close", f"closed cabinet {cab.cid}", cabinet=cab.cid)
             return
 
         obj = self.objects[self.holding]
@@ -277,16 +284,16 @@ class Kitchen:
             if not cab.is_open:
                 return
             obj.container, obj.cell = cab.cid, None
-            self._log("place", f"put {obj.kind} in cabinet {cab.cid}")
+            self._log("place", f"put {obj.kind} in cabinet {cab.cid}", obj=obj.kind, cabinet=cab.cid)
         else:
             surface = Cell(int(self.layout.grid[cell])).name.lower()
             obj.container, obj.cell = None, cell
-            self._log("place", f"put {obj.kind} on the {surface}")
+            self._log("place", f"put {obj.kind} on the {surface}", obj=obj.kind, surface=surface)
         obj.held = False
         self.holding = None
 
-    def _log(self, kind: str, text: str) -> None:
-        self.events.append(Event(step=self.t, kind=kind, text=text))
+    def _log(self, kind: str, text: str, **fields) -> None:
+        self.events.append(Event(step=self.t, kind=kind, text=text, **fields))
 
     # -- observation ------------------------------------------------------
 

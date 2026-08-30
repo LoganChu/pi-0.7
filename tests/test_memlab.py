@@ -14,12 +14,22 @@ from PIL import Image
 
 from memlab.cost import flops, joint_flops, tokens_per_layer
 from memlab.encoder import EncoderConfig, MemEncoder
+from memlab.llm_memory import build_prompt, parse_response
+from memlab.memory_tokenizer import MemoryTokenizer
 from memlab.oracle import collect, run_episode
 from memlab.render import cell_on_screen, filmstrip_steps, rollout, save_gif
 from memlab.tasks import COUNTER_SPOTS, TABLE_CELLS, make_task
+from memlab.text_memory import (
+    MemoryConfig,
+    Subtask,
+    TextMemory,
+    episode_subtasks,
+    memory_trace,
+)
 from memlab.world import (
     FRAME_PX,
     Cell,
+    Event,
     Kitchen,
     Obj,
     default_layout,
@@ -183,6 +193,159 @@ def test_dropping_changes_the_output() -> None:
     kept = MemEncoder(EncoderConfig(drop_history_after=12)).eval()
     with torch.no_grad():
         assert not torch.allclose(dropped(frames), kept(frames))
+
+
+# -- text memory ---------------------------------------------------------
+
+
+def _absorb(events: list[Event], cfg: MemoryConfig | None = None) -> TextMemory:
+    memory = TextMemory(cfg)
+    for event in events:
+        memory.absorb(event)
+    return memory
+
+
+def test_identical_items_are_counted_not_listed() -> None:
+    """The paper's own compression example: three bowls, one clause."""
+    memory = _absorb([
+        Event(0, "open", "opened cabinet 2", cabinet=2),
+        *[Event(0, "see", "saw mug in cabinet 2", obj="mug", cabinet=2) for _ in range(3)],
+    ])
+    assert "three mugs in cabinet 2" in memory.render()
+
+
+def test_compaction_holds_size_as_duplicates_pile_up() -> None:
+    """Adding more of the same must cost ~nothing; the transcript pays linearly."""
+    def sizes(n: int) -> tuple[int, int]:
+        events = [Event(0, "open", "opened cabinet 2", cabinet=2)] + [
+            Event(0, "see", "saw mug in cabinet 2", obj="mug", cabinet=2) for _ in range(n)
+        ]
+        compact = _absorb(events).render()
+        raw = _absorb(events, MemoryConfig(compact=False)).render()
+        return len(compact.split()), len(raw.split())
+
+    small_c, small_v = sizes(2)
+    big_c, big_v = sizes(8)
+    assert big_v - small_v >= 20          # verbatim grows with every repeat
+    assert big_c - small_c <= 1           # compacted does not
+
+
+def test_stale_facts_are_removed_not_merely_aged() -> None:
+    """Taking the bread out must delete "bread in cabinet 4", not keep both."""
+    memory = _absorb([
+        Event(0, "open", "opened cabinet 4", cabinet=4),
+        Event(0, "see", "saw bread in cabinet 4", obj="bread", cabinet=4),
+        Event(1, "pick", "picked up bread", obj="bread"),
+    ])
+    assert memory.belief.location_of("bread") == "held"
+    assert "bread in cabinet 4" not in memory.render()
+    assert memory.belief.knows_searched(4)  # searching it is still remembered
+
+
+def test_reopening_a_cabinet_does_not_double_count() -> None:
+    look = [
+        Event(0, "open", "opened cabinet 1", cabinet=1),
+        Event(0, "see", "saw mug in cabinet 1", obj="mug", cabinet=1),
+    ]
+    once, twice = _absorb(look).render(), _absorb(look + look).render()
+    assert once == twice
+
+
+def test_placing_moves_the_object_rather_than_copying_it() -> None:
+    memory = _absorb([
+        Event(0, "pick", "picked up soap", obj="soap"),
+        Event(1, "place", "put soap in cabinet 3", obj="soap", cabinet=3),
+    ])
+    assert memory.belief.location_of("soap") == "cabinet 3"
+    assert "holding" not in memory.render()
+
+
+def test_budget_drops_incidental_objects_before_the_searched_set() -> None:
+    events = [Event(0, "open", f"opened cabinet {c}", cabinet=c) for c in range(4)]
+    events += [
+        Event(1, "see", "saw mug in cabinet 0", obj="mug", cabinet=0),
+        Event(1, "see", "saw plate in cabinet 1", obj="plate", cabinet=1),
+    ]
+    tight = _absorb(events, MemoryConfig(max_tokens=12)).snapshot()
+    assert tight.placements == {}          # object locations went first
+    assert len(tight.searched) == 4        # the searched set survived
+
+
+def test_protected_objects_survive_the_budget() -> None:
+    events = [
+        Event(0, "open", "opened cabinet 0", cabinet=0),
+        Event(0, "see", "saw mug in cabinet 0", obj="mug", cabinet=0),
+        Event(0, "see", "saw bread in cabinet 0", obj="bread", cabinet=0),
+    ]
+    # 8, not 10: at 10 the untrimmed text already fits and compaction never runs.
+    kept = _absorb(events, MemoryConfig(max_tokens=8, protected=("bread",))).snapshot()
+    assert kept.location_of("bread") == "cabinet 0"
+    assert kept.location_of("mug") is None
+
+
+def test_memory_trace_aligns_with_the_episode() -> None:
+    episode = collect("tidy_up", 1, seed=0, keep_frames=False)[0]
+    trace = memory_trace(episode)
+    assert len(trace.texts) == len(trace.tokens) == len(trace.beliefs) == len(episode)
+    # Memory at step t may only know things observed strictly before t.
+    first_open = min(e.step for e in episode.events if e.kind == "open")
+    assert not trace.beliefs[first_open].searched
+    assert trace.beliefs[-1].searched
+
+
+def test_trace_records_per_subtask_success_not_episode_success() -> None:
+    episode = collect("find_object", 1, seed=0, keep_frames=False)[0]
+    subtasks = episode_subtasks(episode)
+    assert len(subtasks) == len(memory_trace(episode).updates)
+    assert all(s.end > s.start for s in subtasks)
+
+
+def test_verbatim_baseline_really_is_verbatim() -> None:
+    episode = collect("find_object", 1, seed=0, keep_frames=False)[0]
+    text = memory_trace(episode, MemoryConfig(compact=False)).texts[-1]
+    for event in episode.events:
+        assert event.text in text
+
+
+# -- memory tokenizer and the LLM writer ---------------------------------
+
+
+def test_tokenizer_covers_the_memory_language() -> None:
+    tokenizer = MemoryTokenizer.from_episodes(n_episodes=4)
+    episode = collect("tidy_up", 1, seed=99, keep_frames=False)[0]
+    text = memory_trace(episode).texts[-1]
+    assert tokenizer.unknown_rate(text) == 0.0
+    assert tokenizer.count(text) >= len(text.split())
+
+
+def test_tokenizer_round_trips(tmp_path) -> None:
+    tokenizer = MemoryTokenizer.fit(["searched cabinets 1 and 2", "mug in cabinet 1"])
+    path = tokenizer.save(tmp_path / "mem.json")
+    reloaded = MemoryTokenizer.load(path)
+    assert reloaded.encode("mug in cabinet 1") == tokenizer.encode("mug in cabinet 1")
+
+
+def test_llm_prompt_carries_the_success_flag() -> None:
+    """The failure signal is what the paper's labeller conditions on."""
+    ok = Subtask(0, 5, "open cabinet 2", True, ("opened cabinet 2",))
+    bad = Subtask(5, 9, "pick up the bread", False, ())
+    assert "(succeeded)" in build_prompt("nothing yet.", ok)
+    assert "(FAILED)" in build_prompt("searched cabinet 2.", bad)
+    assert "Observed: nothing" in build_prompt("", bad)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("searched cabinet 2.", "searched cabinet 2."),
+        ("Updated memory: searched cabinet 2.", "searched cabinet 2."),
+        ("<think>hmm</think>\nsearched cabinet 2.", "searched cabinet 2."),
+        ("- searched cabinet 2.\n- extra", "searched cabinet 2."),
+        ("", ""),
+    ],
+)
+def test_llm_response_parsing(raw: str, expected: str) -> None:
+    assert parse_response(raw) == expected
 
 
 # -- cost model ----------------------------------------------------------
