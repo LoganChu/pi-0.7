@@ -1,0 +1,13 @@
+# Phase 1: references. bf16 / on-the-fly fp8 on eager PyTorch and vLLM. The "__all" runs cover all
+# 120 observations and provide the bf16 completions used as calibration text in phases 2 and 3.
+vla0__hf__bf16            | .venvs/quant/bin/python engines/run_hf.py --model-name vla0 --quant bf16
+vla0__vllm__bf16          | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant bf16 | mem=14G
+vla0__vllm__bf16__all     | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant bf16 --subset all --batch-sizes 1 --tag all | mem=14G
+vla0__vllm__fp8           | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant fp8 | mem=14G
+vla0__vllm__fp8-kv        | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant fp8-kv | mem=14G
+vla0-smol__hf__bf16       | .venvs/quant/bin/python engines/run_hf.py --model-name vla0-smol --quant bf16
+vla0-smol__hf__fp32       | .venvs/quant/bin/python engines/run_hf.py --model-name vla0-smol --quant fp32 --dtype float32
+vla0-smol__vllm__bf16     | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant bf16
+vla0-smol__vllm__bf16__all| .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant bf16 --subset all --batch-sizes 1 --tag all
+vla0-smol__vllm__fp8      | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant fp8
+vla0-smol__vllm__fp8-kv   | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant fp8-kv

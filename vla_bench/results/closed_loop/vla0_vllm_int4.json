@@ -1,0 +1,136 @@
+{
+ "label": "vla0_vllm_int4",
+ "health": {
+  "engine": "vllm",
+  "model": "vla0",
+  "quant": "int4",
+  "env": {
+   "vllm": "0.33.0",
+   "torch": "2.14.0+cu130",
+   "cuda": "13.0",
+   "gpu": "NVIDIA GeForce RTX 5090",
+   "load_s": "16.63530993461609",
+   "engine_kwargs": "{'dtype': 'bfloat16', 'max_model_len': '1024', 'limit_mm_per_prompt': \"{'image': 1}\", 'gpu_memory_utilization': '0.8', 'enforce_eager': 'False', 'max_num_seqs': '64', 'seed': '0', 'mm_processor_kwargs': \"{'min_pixels': 100352, 'max_pixels': 100352}\"}",
+   "restrict_tokens": "False"
+  }
+ },
+ "episodes": [
+  {
+   "suite": "libero_goal",
+   "task_id": 0,
+   "task": "open the middle drawer of the cabinet",
+   "init_state": 0,
+   "success": false,
+   "steps": 300,
+   "policy_latency_ms": 624.5147496564701,
+   "malformed": 0,
+   "wall_s": 198.71556448936462
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 1,
+   "task": "put the bowl on the stove",
+   "init_state": 0,
+   "success": true,
+   "steps": 86,
+   "policy_latency_ms": 666.0051076966716,
+   "malformed": 8,
+   "wall_s": 60.48493003845215
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 2,
+   "task": "put the wine bottle on top of the cabinet",
+   "init_state": 0,
+   "success": false,
+   "steps": 300,
+   "policy_latency_ms": 658.1884816898188,
+   "malformed": 64,
+   "wall_s": 208.2462739944458
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 3,
+   "task": "open the top drawer and put the bowl inside",
+   "init_state": 0,
+   "success": false,
+   "steps": 300,
+   "policy_latency_ms": 635.6175759413358,
+   "malformed": 0,
+   "wall_s": 201.6796441078186
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 4,
+   "task": "put the bowl on top of the cabinet",
+   "init_state": 0,
+   "success": true,
+   "steps": 76,
+   "policy_latency_ms": 664.3964390241308,
+   "malformed": 9,
+   "wall_s": 53.52115607261658
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 5,
+   "task": "push the plate to the front of the stove",
+   "init_state": 0,
+   "success": false,
+   "steps": 300,
+   "policy_latency_ms": 634.0337832060565,
+   "malformed": 0,
+   "wall_s": 200.46434330940247
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 6,
+   "task": "put the cream cheese in the bowl",
+   "init_state": 0,
+   "success": false,
+   "steps": 300,
+   "policy_latency_ms": 648.7876835717665,
+   "malformed": 33,
+   "wall_s": 206.0788197517395
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 7,
+   "task": "turn on the stove",
+   "init_state": 0,
+   "success": true,
+   "steps": 54,
+   "policy_latency_ms": 653.6244170533287,
+   "malformed": 0,
+   "wall_s": 37.500858306884766
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 8,
+   "task": "put the bowl on the plate",
+   "init_state": 0,
+   "success": true,
+   "steps": 84,
+   "policy_latency_ms": 659.6746934471108,
+   "malformed": 8,
+   "wall_s": 58.648261308670044
+  },
+  {
+   "suite": "libero_goal",
+   "task_id": 9,
+   "task": "put the wine bottle on the rack",
+   "init_state": 0,
+   "success": true,
+   "steps": 198,
+   "policy_latency_ms": 646.5536292326035,
+   "malformed": 1,
+   "wall_s": 136.04893112182617
+  }
+ ],
+ "seed": 7,
+ "ensemble": 8,
+ "success_rate": 0.5,
+ "per_suite": {
+  "libero_goal": 0.5
+ },
+ "mean_policy_latency_ms": 649.1396560519293
+}

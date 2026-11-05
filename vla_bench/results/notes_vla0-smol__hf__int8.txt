@@ -1,0 +1,4 @@
+  libero_spatial_t00_s00       289138.0 ms  out_tok= 215  ' 26 277 277 215 279 2 1   36 276 25 25      39 39 34 25 271 '
+  libero_spatial_t01_s00       269009.6 ms  out_tok= 202  ' 255 371 278 21 254 253 0 255 391 278 213 229 0 261 33 278 2'
+  libero_spatial_t02_s00       221556.1 ms  out_tok= 166  ' 258 273 25 215 25          30 25 25 25 0 51 34 322 25 25 25'
+killed by hand at 12:28: ~220-270 s per chunk (~1.2 s/token) and degenerate outputs with torchao Int8DynamicActivationInt8WeightConfig in eager mode; not worth 3 h of GPU time

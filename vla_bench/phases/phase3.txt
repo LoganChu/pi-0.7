@@ -1,0 +1,11 @@
+# Phase 3: TensorRT-LLM (PyTorch backend) with ModelOpt checkpoints. LLM-API scripts go through
+# trtllm_launch.sh (mpirun + trtllm-llmapi-launch); apply patches/patch_trtllm_nvml.py once first.
+vla0__trtllm__bf16        | ./trtllm_launch.sh engines/run_trtllm.py --model-name vla0 --quant bf16
+q_mo_fp8                  | [ -d models/vla0-libero-modelopt-fp8 ] || ./trtllm_env.sh quantize/modelopt_quantize.py --qformat fp8
+vla0__trtllm__fp8         | ./trtllm_launch.sh engines/run_trtllm.py --model-name vla0 --quant fp8 --model models/vla0-libero-modelopt-fp8
+vla0__trtllm__fp8__fp8kv  | ./trtllm_launch.sh engines/run_trtllm.py --model-name vla0 --quant fp8 --model models/vla0-libero-modelopt-fp8 --kv-dtype fp8 --tag fp8kv
+q_mo_nvfp4                | [ -d models/vla0-libero-modelopt-nvfp4 ] || ./trtllm_env.sh quantize/modelopt_quantize.py --qformat nvfp4
+vla0__trtllm__nvfp4       | ./trtllm_launch.sh engines/run_trtllm.py --model-name vla0 --quant nvfp4 --model models/vla0-libero-modelopt-nvfp4
+# INT4-AWQ builds but the executor refuses it on SM120 ("SM120 GEMM only supports nvfp4"); kept for other GPUs:
+# q_mo_int4               | [ -d models/vla0-libero-modelopt-int4_awq ] || ./trtllm_env.sh quantize/modelopt_quantize.py --qformat int4_awq
+# vla0__trtllm__int4      | ./trtllm_launch.sh engines/run_trtllm.py --model-name vla0 --quant int4 --model models/vla0-libero-modelopt-int4_awq

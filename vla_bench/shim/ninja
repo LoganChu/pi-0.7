@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# one compile process at a time: each FlashInfer/CUTLASS sm120 unit needs ~6 GB of host RAM
+exec /usr/bin/ninja -j 1 "$@"

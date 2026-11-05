@@ -1,0 +1,11 @@
+# Phase 4: ExecuTorch (VLA-0-Smol). Exports take ~4-7 GB of host RAM each; the CUDA recipe needs nvcc.
+x_et_xnnpack_fp32         | [ -f models/et/smol-xnnpack-fp32/model.pte ] || .venvs/executorch/bin/python engines/export_executorch.py --recipe xnnpack --dtype float32 --out models/et/smol-xnnpack-fp32
+x_et_xnnpack_8da8w        | [ -f models/et/smol-xnnpack-8da8w/model.pte ] || .venvs/executorch/bin/python engines/export_executorch.py --recipe xnnpack --dtype float32 --qlinear 8da8w --out models/et/smol-xnnpack-8da8w
+x_et_xnnpack_8da4w        | [ -f models/et/smol-xnnpack-8da4w/model.pte ] || .venvs/executorch/bin/python engines/export_executorch.py --recipe xnnpack --dtype float32 --qlinear 8da4w --qlinear-group-size 32 --out models/et/smol-xnnpack-8da4w
+x_et_cuda_bf16            | [ -f models/et/smol-cuda-bf16/model.pte ] || CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH .venvs/executorch/bin/python engines/export_executorch.py --recipe cuda --dtype bfloat16 --device cuda --out models/et/smol-cuda-bf16
+x_et_cuda_int4            | [ -f models/et/smol-cuda-int4/model.pte ] || CUDA_HOME=/usr/local/cuda PATH=/usr/local/cuda/bin:$PATH .venvs/executorch/bin/python engines/export_executorch.py --recipe cuda --dtype bfloat16 --device cuda --qlinear 4w --qlinear-packing-format tile_packed_to_4d --out models/et/smol-cuda-int4
+vla0-smol__executorch-cuda__bf16    | .venvs/executorch/bin/python engines/run_executorch.py --model-name vla0-smol --quant bf16 --pte-dir models/et/smol-cuda-bf16 --backend cuda
+vla0-smol__executorch-cuda__int4    | .venvs/executorch/bin/python engines/run_executorch.py --model-name vla0-smol --quant int4 --pte-dir models/et/smol-cuda-int4 --backend cuda
+vla0-smol__executorch-xnnpack__int4 | .venvs/executorch/bin/python engines/run_executorch.py --model-name vla0-smol --quant int4 --pte-dir models/et/smol-xnnpack-8da4w --backend xnnpack --threads 8
+vla0-smol__executorch-xnnpack__int8 | .venvs/executorch/bin/python engines/run_executorch.py --model-name vla0-smol --quant int8 --pte-dir models/et/smol-xnnpack-8da8w --backend xnnpack --threads 8
+vla0-smol__executorch-xnnpack__fp32 | .venvs/executorch/bin/python engines/run_executorch.py --model-name vla0-smol --quant fp32 --pte-dir models/et/smol-xnnpack-fp32 --backend xnnpack --threads 8 --limit 20

@@ -1,0 +1,31 @@
+# Phase 2: quantized checkpoints (llm-compressor) on vLLM, and torchao on eager PyTorch.
+# FlashInfer's sm120 GEMM kernels are built once here, outside the engine (one nvcc process, ~11 GB peak).
+jit_prebuild_flashinfer   | .venvs/vllm/bin/python quantize/prebuild_flashinfer.py
+# --- VLA-0 (Qwen2.5-VL-3B)
+q_vla0_fp8s               | [ -d models/vla0-libero-llmc-fp8-static ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0 --recipe fp8-static | mem=14G
+vla0__vllm__fp8-static    | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant fp8-static --model models/vla0-libero-llmc-fp8-static | mem=14G
+q_vla0_int8wo             | [ -d models/vla0-libero-llmc-int8wo ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0 --recipe int8wo | mem=14G
+vla0__vllm__int8wo        | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant int8wo --model models/vla0-libero-llmc-int8wo | mem=14G
+q_vla0_int4               | [ -d models/vla0-libero-llmc-int4 ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0 --recipe int4 | mem=14G
+vla0__vllm__int4          | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant int4 --model models/vla0-libero-llmc-int4 | mem=14G
+q_vla0_nvfp4              | [ -d models/vla0-libero-llmc-nvfp4 ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0 --recipe nvfp4 | mem=14G
+vla0__vllm__nvfp4         | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant nvfp4 --model models/vla0-libero-llmc-nvfp4 | mem=14G
+# W8A8 INT8 builds but vLLM refuses to run it on SM120 ("Int8 not supported on SM120"); kept for other GPUs:
+# q_vla0_int8             | [ -d models/vla0-libero-llmc-int8 ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0 --recipe int8 | mem=14G
+# vla0__vllm__int8        | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0 --quant int8 --model models/vla0-libero-llmc-int8 | mem=14G
+# --- VLA-0-Smol (SmolVLM2-500M); AWQ mappings do not resolve on SmolVLM, so int4 is GPTQ (group 32)
+q_smol_fp8s               | [ -d models/vla0-smol-libero-llmc-fp8-static ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0-smol --recipe fp8-static
+vla0-smol__vllm__fp8-static | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant fp8-static --model models/vla0-smol-libero-llmc-fp8-static
+q_smol_int8wo             | [ -d models/vla0-smol-libero-llmc-int8wo ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0-smol --recipe int8wo
+vla0-smol__vllm__int8wo   | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant int8wo --model models/vla0-smol-libero-llmc-int8wo
+q_smol_int4g              | [ -d models/vla0-smol-libero-llmc-int4-gptq ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0-smol --recipe int4-gptq
+vla0-smol__vllm__int4     | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant int4 --model models/vla0-smol-libero-llmc-int4-gptq --notes "GPTQ W4A16 g32; AWQ layer mappings do not resolve on SmolVLM"
+q_smol_nvfp4              | [ -d models/vla0-smol-libero-llmc-nvfp4 ] || .venvs/quant/bin/python quantize/llmc_quantize.py --model-name vla0-smol --recipe nvfp4
+vla0-smol__vllm__nvfp4    | .venvs/vllm/bin/python engines/run_vllm.py --model-name vla0-smol --quant nvfp4 --model models/vla0-smol-libero-llmc-nvfp4
+# --- torchao on eager PyTorch (no engine): shows what quantization costs without compiled kernels
+vla0__hf__fp8             | .venvs/quant/bin/python engines/run_hf.py --model-name vla0 --quant fp8
+vla0__hf__int8            | .venvs/quant/bin/python engines/run_hf.py --model-name vla0 --quant int8
+vla0__hf__int4            | .venvs/quant/bin/python engines/run_hf.py --model-name vla0 --quant int4
+vla0-smol__hf__fp8        | .venvs/quant/bin/python engines/run_hf.py --model-name vla0-smol --quant fp8
+vla0-smol__hf__int4       | .venvs/quant/bin/python engines/run_hf.py --model-name vla0-smol --quant int4
+# vla0-smol__hf__int8 is pathological (220-270 s per chunk, degenerate text; see results/notes_vla0-smol__hf__int8.txt)

@@ -1,0 +1,13 @@
+# engine venvs, downloaded and derived checkpoints, run logs
+.venvs/
+models/
+logs/
+# rendered observations are reproducible with ./prepare_data.sh (manifest.json is kept)
+data/obs/
+data/_probe/
+# pre-re-measurement copies of rows first taken under load
+results/nov3_loaded/
+__pycache__/
+# the repo-level .gitignore drops *.png; the result figures are part of the write-up
+!results/figures/
+!results/figures/*.png
